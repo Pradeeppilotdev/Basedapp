@@ -97,7 +97,7 @@ Open http://localhost:3000 🎉
 - Prize claiming
 - Admin functions
 - Emergency pause
-
+- And a Flow
 **Security:**
 - OpenZeppelin contracts (Ownable, ReentrancyGuard, Pausable)
 - Pull-over-push payments
@@ -112,6 +112,7 @@ Open http://localhost:3000 🎉
 - Wagmi v2 & Viem v2 (Web3)
 - RainbowKit (Wallets)
 - TailwindCSS
+- 
 
 **Features:**
 - Real-time prize pool updates
