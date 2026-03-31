@@ -55,7 +55,7 @@ export const LOTTERY_ABI = [
     outputs: [
       { internalType: 'uint256', name: 'roundId', type: 'uint256' },
       { internalType: 'uint256', name: 'startTime', type: 'uint256' },
-      { internalType: 'uint256', name: 'end Time', type: 'uint256' },
+      { internalType: 'uint256', name: 'endTime', type: 'uint256' },
       { internalType: 'uint256', name: 'totalTickets', type: 'uint256' },
       { internalType: 'uint256', name: 'prizePool', type: 'uint256' },
       { internalType: 'bool', name: 'isActive', type: 'bool' },
