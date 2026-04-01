@@ -1,12 +1,26 @@
 import { Address } from 'viem';
 
-// Contract addresses - UPDATE after deployment!
+export const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000';
+
+function normalizeAddress(value: string | undefined): Address {
+  if (value && /^0x[a-fA-F0-9]{40}$/.test(value)) {
+    return value as Address;
+  }
+
+  return ZERO_ADDRESS;
+}
+
+// Contract addresses can be configured via environment variables.
 export const LOTTERY_ADDRESS: Record<number, Address> = {
   // Base Sepolia testnet
-  84532: '0x0000000000000000000000000000000000000000', // Replace after deploying to Sepolia
+  84532: normalizeAddress(process.env.NEXT_PUBLIC_LOTTERY_ADDRESS_SEPOLIA),
   // Base mainnet
-  8453: '0x0000000000000000000000000000000000000000', // Replace after deploying to mainnet
+  8453: normalizeAddress(process.env.NEXT_PUBLIC_LOTTERY_ADDRESS_MAINNET),
 };
+
+export function isDeployedContractAddress(address: Address | undefined): boolean {
+  return Boolean(address && address !== ZERO_ADDRESS);
+}
 
 // SimpleLottery ABI (only the functions we need)
 export const LOTTERY_ABI = [

@@ -6,6 +6,8 @@ import { Countdown } from '../components/Countdown';
 import { TicketPurchase } from '../components/TicketPurchase';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   const {
     currentRound,
@@ -16,6 +18,7 @@ export default function Home() {
     isConfirming,
     isConfirmed,
     contractAddress,
+    hasDeployedContract,
   } = useLottery();
 
   return (
@@ -35,7 +38,7 @@ export default function Home() {
         </header>
 
         {/* Contract Warning */}
-        {!contractAddress && (
+        {!hasDeployedContract && (
           <div className="mb-8 bg-yellow-100 border-2 border-yellow-400 rounded-lg p-6 text-center">
             <p className="text-yellow-900 font-semibold text-lg">
               ⚠️ Contract not deployed on this network yet
@@ -65,6 +68,7 @@ export default function Home() {
               <TicketPurchase
                 onBuyTickets={buyTickets}
                 userTickets={userTickets}
+                totalTickets={currentRound.totalTickets}
                 isEntering={isEntering}
                 isConfirming={isConfirming}
                 isConfirmed={isConfirmed}
@@ -108,9 +112,11 @@ export default function Home() {
         {/* Footer */}
         <footer className="mt-12 text-center text-white/80 text-sm">
           <p>Built on Base • Powered by Smart Contracts • Provably Fair</p>
-          <p className="mt-2">
-            Contract: {contractAddress?.slice(0, 6)}...{contractAddress?.slice(-4)}
-          </p>
+          {contractAddress && (
+            <p className="mt-2">
+              Contract: {contractAddress.slice(0, 6)}...{contractAddress.slice(-4)}
+            </p>
+          )}
         </footer>
       </div>
     </div>

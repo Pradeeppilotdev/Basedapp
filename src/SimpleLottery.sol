@@ -98,6 +98,7 @@ contract SimpleLottery is Ownable, ReentrancyGuard, Pausable {
     error NotWinner();
     error PrizeAlreadyClaimed();
     error DrawNotCommitted();
+    error DrawAlreadyCommitted();
     error TooEarlyToReveal();
     error InvalidReveal();
     error NoFeesToCollect();
@@ -203,6 +204,9 @@ contract SimpleLottery is Ownable, ReentrancyGuard, Pausable {
 
         // Validate round has tickets
         if (round.totalTickets == 0) revert NoTicketsInRound();
+
+        // Prevent commitment overwrite for fairness guarantees
+        if (round.commitHash != bytes32(0)) revert DrawAlreadyCommitted();
 
         // Store commitment
         round.commitHash = _commitHash;

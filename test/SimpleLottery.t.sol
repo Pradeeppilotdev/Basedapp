@@ -209,6 +209,23 @@ contract SimpleLotteryTest is Test {
         lottery.commitDraw(commitHash);
     }
 
+    function test_CommitDraw_RevertsIfAlreadyCommitted() public {
+        vm.prank(user1);
+        lottery.enterLottery{value: 0.01 ether}(1);
+
+        vm.warp(block.timestamp + 25 hours);
+
+        bytes32 firstCommitHash = keccak256(abi.encodePacked(uint256(1), uint256(111)));
+        bytes32 secondCommitHash = keccak256(abi.encodePacked(uint256(1), uint256(222)));
+
+        vm.prank(owner);
+        lottery.commitDraw(firstCommitHash);
+
+        vm.prank(owner);
+        vm.expectRevert(SimpleLottery.DrawAlreadyCommitted.selector);
+        lottery.commitDraw(secondCommitHash);
+    }
+
     function test_RevealDraw_SelectsWinner() public {
         // Users buy tickets
         vm.prank(user1);

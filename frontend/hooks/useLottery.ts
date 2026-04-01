@@ -1,11 +1,13 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useChainId } from 'wagmi';
-import { LOTTERY_ABI, LOTTERY_ADDRESS } from '../lib/contracts';
+import { LOTTERY_ABI, LOTTERY_ADDRESS, isDeployedContractAddress } from '../lib/contracts';
 import { formatEther, parseEther } from 'viem';
 
 export function useLottery() {
   const { address } = useAccount();
   const chainId = useChainId();
-  const contractAddress = LOTTERY_ADDRESS[chainId as keyof typeof LOTTERY_ADDRESS];
+  const configuredAddress = LOTTERY_ADDRESS[chainId as keyof typeof LOTTERY_ADDRESS];
+  const hasDeployedContract = isDeployedContractAddress(configuredAddress);
+  const contractAddress = hasDeployedContract ? configuredAddress : undefined;
 
   // Read current round info
   const { data: currentRound, refetch: refetchRound } = useReadContract({
@@ -13,6 +15,7 @@ export function useLottery() {
     abi: LOTTERY_ABI,
     functionName: 'getCurrentRound',
     query: {
+      enabled: !!contractAddress,
       refetchInterval: 10000, // Refetch every 10 seconds
     },
   });
@@ -22,6 +25,9 @@ export function useLottery() {
     address: contractAddress,
     abi: LOTTERY_ABI,
     functionName: 'currentRoundId',
+    query: {
+      enabled: !!contractAddress,
+    },
   });
 
   const { data: userTickets, refetch: refetchUserTickets } = useReadContract({
@@ -30,7 +36,7 @@ export function useLottery() {
     functionName: 'getUserTickets',
     args: currentRoundId && address ? [currentRoundId, address] : undefined,
     query: {
-      enabled: !!currentRoundId && !!address,
+      enabled: !!contractAddress && !!currentRoundId && !!address,
     },
   });
 
@@ -40,6 +46,7 @@ export function useLottery() {
     abi: LOTTERY_ABI,
     functionName: 'getTimeRemaining',
     query: {
+      enabled: !!contractAddress,
       refetchInterval: 1000, // Update every second
     },
   });
@@ -82,6 +89,7 @@ export function useLottery() {
     userTickets: userTickets ? Number(userTickets) : 0,
     timeRemaining: timeRemaining ? Number(timeRemaining) : 0,
     contractAddress,
+    hasDeployedContract,
 
     // Actions
     buyTickets,

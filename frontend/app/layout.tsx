@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import dynamic from 'next/dynamic';
 import './globals.css';
-import { Providers } from '../lib/providers';
 
-const inter = Inter({ subsets: ['latin'] });
+const ClientProviders = dynamic(
+  () => import('../lib/providers').then((module) => module.Providers),
+  { ssr: false }
+);
 
 export const metadata: Metadata = {
   title: 'Base Daily Lottery - Win ETH Every Day!',
@@ -17,10 +19,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <Providers>
-          {children}
-        </Providers>
+      <body className="app-font">
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );

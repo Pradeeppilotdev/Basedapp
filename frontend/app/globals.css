@@ -19,6 +19,10 @@ body {
   min-height: 100vh;
 }
 
+.app-font {
+  font-family: 'Avenir Next', 'Trebuchet MS', 'Segoe UI', sans-serif;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

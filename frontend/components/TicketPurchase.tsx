@@ -7,6 +7,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 interface TicketPurchaseProps {
   onBuyTickets: (numTickets: number) => Promise<void>;
   userTickets: number;
+  totalTickets: number;
   isEntering: boolean;
   isConfirming: boolean;
   isConfirmed: boolean;
@@ -15,6 +16,7 @@ interface TicketPurchaseProps {
 export function TicketPurchase({
   onBuyTickets,
   userTickets,
+  totalTickets,
   isEntering,
   isConfirming,
   isConfirmed,
@@ -33,6 +35,15 @@ export function TicketPurchase({
   };
 
   const totalCost = (0.01 * numTickets).toFixed(3);
+  const projectedTotalTickets = totalTickets + numTickets;
+  const projectedUserTickets = userTickets + numTickets;
+  const projectedWinChance = projectedTotalTickets > 0
+    ? (projectedUserTickets / projectedTotalTickets) * 100
+    : 0;
+
+  const winChanceLabel = projectedWinChance < 1
+    ? `${projectedWinChance.toFixed(2)}%`
+    : `${projectedWinChance.toFixed(1)}%`;
 
   return (
     <div className="bg-white rounded-2xl shadow-2xl p-8">
@@ -87,8 +98,8 @@ export function TicketPurchase({
               <span className="font-medium">{totalCost} ETH</span>
             </div>
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Your win chance</span>
-              <span className="font-medium">Coming soon</span>
+              <span>Projected win chance</span>
+              <span className="font-medium">{winChanceLabel}</span>
             </div>
           </div>
 
