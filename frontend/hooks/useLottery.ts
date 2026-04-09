@@ -62,7 +62,7 @@ export function useLottery() {
   const buyTickets = async (numTickets: number) => {
     if (!contractAddress) throw new Error('Contract not deployed on this network');
 
-    const value = parseEther((0.01 * numTickets).toString());
+    const value = parseEther((0.0001 * numTickets).toString());
 
     return enterLottery({
       address: contractAddress,
@@ -79,7 +79,7 @@ export function useLottery() {
     startTime: Number(currentRound[1]),
     endTime: Number(currentRound[2]),
     totalTickets: Number(currentRound[3]),
-    prizePool: formatEther(currentRound[4]),
+    prizePool: currentRound[4] as bigint,
     isActive: currentRound[5],
   } : null;
 
