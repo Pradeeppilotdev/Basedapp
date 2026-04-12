@@ -31,11 +31,11 @@ cp .env.example .env
 # Install Foundry dependencies
 forge install
 
-# Run tests (should pass all 43)
+# Run tests (should pass all 24 HybridLottery tests)
 forge test -vv
 
 # Deploy contract
-~/.foundry/bin/forge script script/Deploy.s.sol:DeploySimpleLottery \
+~/.foundry/bin/forge script script/Deploy.s.sol:DeployHybridLottery \
   --rpc-url base_sepolia \
   --broadcast \
   --verify
@@ -78,7 +78,7 @@ forge coverage    # Coverage report
 
 ## Key Features Implemented
 ✅ Daily lottery rounds (24 hours)
-✅ Ticket purchasing (0.01 ETH each, max 10 per tx)
+✅ Ticket purchasing (0.0001 ETH each, max 10 per tx)
 ✅ Real-time countdown timer
 ✅ Prize pool display
 ✅ Wallet integration
@@ -87,6 +87,6 @@ forge coverage    # Coverage report
 ✅ Web3 hooks for contract interaction
 
 ## Testing
-- Smart contract: 43/43 tests passing
+- Smart contract: 24/24 tests passing
 - Frontend: Compiles without errors
 - Responsiveness: Mobile & desktop optimized

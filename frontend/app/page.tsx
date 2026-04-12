@@ -17,6 +17,7 @@ export default function Home() {
     currentRound,
     userTickets,
     timeRemaining,
+    treasuryProgress,
     buyTickets,
     isEntering,
     isConfirming,
@@ -38,9 +39,6 @@ export default function Home() {
   const handleBuyTickets = async () => {
     await buyTickets(ticketCount);
   };
-
-  // Mock treasury progress (will be real data later)
-  const treasuryProgress = 42;
 
   return (
     <div className="min-h-screen p-4 md:p-8 space-y-8">

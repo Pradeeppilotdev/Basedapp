@@ -22,7 +22,7 @@ export function isDeployedContractAddress(address: Address | undefined): boolean
   return Boolean(address && address !== ZERO_ADDRESS);
 }
 
-// SimpleLottery ABI (only the functions we need)
+// HybridLottery ABI (only the functions we need)
 export const LOTTERY_ABI = [
   // Constants
   {
@@ -104,7 +104,7 @@ export const LOTTERY_ABI = [
           { internalType: 'bytes32', name: 'commitHash', type: 'bytes32' },
           { internalType: 'uint256', name: 'commitBlock', type: 'uint256' },
         ],
-        internalType: 'struct SimpleLottery.Round',
+        internalType: 'struct HybridLottery.Round',
         name: '',
         type: 'tuple',
       },

@@ -1,6 +1,6 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useChainId } from 'wagmi';
 import { LOTTERY_ABI, LOTTERY_ADDRESS, isDeployedContractAddress } from '../lib/contracts';
-import { formatEther, parseEther } from 'viem';
+import { parseEther } from 'viem';
 
 export function useLottery() {
   const { address } = useAccount();
@@ -51,6 +51,16 @@ export function useLottery() {
     },
   });
 
+  const { data: stats } = useReadContract({
+    address: contractAddress,
+    abi: LOTTERY_ABI,
+    functionName: 'getStats',
+    query: {
+      enabled: !!contractAddress,
+      refetchInterval: 10000,
+    },
+  });
+
   // Write: Enter lottery
   const { data: enterHash, writeContract: enterLottery, isPending: isEntering } = useWriteContract();
 
@@ -83,11 +93,26 @@ export function useLottery() {
     isActive: currentRound[5],
   } : null;
 
+  const statsData = stats ? {
+    totalTokensDistributed: stats[0] as bigint,
+    totalParticipants: Number(stats[1]),
+    treasuryBalance: stats[2] as bigint,
+    liquidityCreated: stats[3] as boolean,
+    liquidityPool: stats[4] as `0x${string}`,
+  } : null;
+
+  const treasuryThreshold = 100000000000000000n;
+  const treasuryProgress = statsData?.treasuryBalance
+    ? Math.min(100, Number((statsData.treasuryBalance * 10000n) / treasuryThreshold) / 100)
+    : 0;
+
   return {
     // Data
     currentRound: roundData,
     userTickets: userTickets ? Number(userTickets) : 0,
     timeRemaining: timeRemaining ? Number(timeRemaining) : 0,
+    treasuryProgress,
+    stats: statsData,
     contractAddress,
     hasDeployedContract,
 

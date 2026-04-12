@@ -34,7 +34,7 @@ export function TicketPurchase({
     }
   };
 
-  const totalCost = (0.01 * numTickets).toFixed(3);
+  const totalCost = (0.0001 * numTickets).toFixed(4);
   const projectedTotalTickets = totalTickets + numTickets;
   const projectedUserTickets = userTickets + numTickets;
   const projectedWinChance = projectedTotalTickets > 0
@@ -66,7 +66,7 @@ export function TicketPurchase({
         <>
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Number of Tickets (0.01 ETH each)
+              Number of Tickets (0.0001 ETH each)
             </label>
             <div className="flex items-center gap-4">
               <button
