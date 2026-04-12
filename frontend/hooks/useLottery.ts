@@ -1,13 +1,30 @@
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useChainId } from 'wagmi';
+import {
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  useAccount,
+  useChainId,
+  usePublicClient,
+} from 'wagmi';
 import { LOTTERY_ABI, LOTTERY_ADDRESS, isDeployedContractAddress } from '../lib/contracts';
-import { parseEther } from 'viem';
+import { parseEther, formatEther, parseAbiItem } from 'viem';
+import { useEffect, useMemo, useState } from 'react';
+
+type TxFeedItem = {
+  id: string;
+  buyer: `0x${string}`;
+  numTickets: number;
+  timestamp: number;
+};
 
 export function useLottery() {
   const { address } = useAccount();
   const chainId = useChainId();
+  const publicClient = usePublicClient();
   const configuredAddress = LOTTERY_ADDRESS[chainId as keyof typeof LOTTERY_ADDRESS];
   const hasDeployedContract = isDeployedContractAddress(configuredAddress);
   const contractAddress = hasDeployedContract ? configuredAddress : undefined;
+  const [feed, setFeed] = useState<TxFeedItem[]>([]);
 
   // Read current round info
   const { data: currentRound, refetch: refetchRound } = useReadContract({
@@ -61,6 +78,16 @@ export function useLottery() {
     },
   });
 
+  const { data: onChainRoundEnd } = useReadContract({
+    address: contractAddress,
+    abi: LOTTERY_ABI,
+    functionName: 'roundEndTime',
+    query: {
+      enabled: !!contractAddress,
+      refetchInterval: 5000,
+    },
+  });
+
   // Write: Enter lottery
   const { data: enterHash, writeContract: enterLottery, isPending: isEntering } = useWriteContract();
 
@@ -106,12 +133,60 @@ export function useLottery() {
     ? Math.min(100, Number((statsData.treasuryBalance * 10000n) / treasuryThreshold) / 100)
     : 0;
 
+  const totalFeesGeneratedEth = useMemo(
+    () => (statsData ? formatEther(statsData.treasuryBalance) : '0'),
+    [statsData]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchFeed = async () => {
+      if (!publicClient || !contractAddress || !currentRoundId) return;
+      const currentBlock = await publicClient.getBlockNumber();
+      const fromBlock = currentBlock > 5000n ? currentBlock - 5000n : 0n;
+
+      const logs = await publicClient.getLogs({
+        address: contractAddress,
+        fromBlock,
+        toBlock: 'latest',
+        event: parseAbiItem(
+          'event TicketsPurchased(uint256 indexed roundId, address indexed buyer, uint256 numTickets, uint256 ethPaid, uint256 tokensReceived)'
+        ),
+      });
+
+      const items: TxFeedItem[] = [];
+      for (const log of logs.slice(-12).reverse()) {
+        const block = await publicClient.getBlock({ blockNumber: log.blockNumber });
+        items.push({
+          id: `${log.transactionHash}-${log.logIndex}`,
+          buyer: log.args.buyer as `0x${string}`,
+          numTickets: Number(log.args.numTickets),
+          timestamp: Number(block.timestamp),
+        });
+      }
+
+      if (!cancelled) {
+        setFeed(items);
+      }
+    };
+
+    void fetchFeed();
+    const id = setInterval(() => void fetchFeed(), 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [publicClient, contractAddress, currentRoundId]);
+
   return {
     // Data
     currentRound: roundData,
     userTickets: userTickets ? Number(userTickets) : 0,
     timeRemaining: timeRemaining ? Number(timeRemaining) : 0,
     treasuryProgress,
+    totalFeesGeneratedEth,
+    recentPurchases: feed,
+    roundEndTime: onChainRoundEnd ? Number(onChainRoundEnd) : roundData?.endTime ?? 0,
     stats: statsData,
     contractAddress,
     hasDeployedContract,

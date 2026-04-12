@@ -34,7 +34,7 @@ export const LOTTERY_ABI = [
   },
   {
     inputs: [],
-    name: 'PLATFORM_FEE_PERCENT',
+    name: 'TREASURY_PERCENTAGE',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
@@ -43,6 +43,13 @@ export const LOTTERY_ABI = [
   {
     inputs: [],
     name: 'currentRoundId',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'roundEndTime',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
@@ -58,6 +65,37 @@ export const LOTTERY_ABI = [
   {
     inputs: [{ internalType: 'uint256', name: '_roundId', type: 'uint256' }],
     name: 'claimPrize',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'commitDraw',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'revealDraw',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes', name: '', type: 'bytes' }],
+    name: 'checkUpkeep',
+    outputs: [
+      { internalType: 'bool', name: 'upkeepNeeded', type: 'bool' },
+      { internalType: 'bytes', name: 'performData', type: 'bytes' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes', name: '_performData', type: 'bytes' }],
+    name: 'performUpkeep',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
@@ -119,6 +157,19 @@ export const LOTTERY_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [],
+    name: 'getStats',
+    outputs: [
+      { internalType: 'uint256', name: '_totalTokensDistributed', type: 'uint256' },
+      { internalType: 'uint256', name: '_totalParticipants', type: 'uint256' },
+      { internalType: 'uint256', name: '_treasuryBalance', type: 'uint256' },
+      { internalType: 'bool', name: '_liquidityCreated', type: 'bool' },
+      { internalType: 'address', name: '_liquidityPool', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
   // Events
   {
     anonymous: false,
@@ -126,7 +177,8 @@ export const LOTTERY_ABI = [
       { indexed: true, internalType: 'uint256', name: 'roundId', type: 'uint256' },
       { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
       { indexed: false, internalType: 'uint256', name: 'numTickets', type: 'uint256' },
-      { indexed: false, internalType: 'uint256', name: 'totalPaid', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'ethPaid', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'tokensReceived', type: 'uint256' },
     ],
     name: 'TicketsPurchased',
     type: 'event',

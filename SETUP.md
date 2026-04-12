@@ -76,6 +76,25 @@ forge coverage    # Coverage report
 - [ ] Deploy frontend to Vercel/hosting
 - [ ] Security review before mainnet
 
+## Base Mainnet Deployment Checklist
+
+- [ ] Confirm `.env` has `BASE_RPC`, `BASESCAN_API_KEY`, `PRIVATE_KEY`, and Gelato keys populated
+- [ ] Confirm `frontend/.env.local` has `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` and mainnet contract address
+- [ ] Run `forge test -vv` and ensure all suites pass
+- [ ] Run `cd frontend && npm run build` and ensure production build passes
+- [ ] Deploy contracts to Base mainnet:
+  ```bash
+  forge script script/Deploy.s.sol:DeployHybridLottery \
+    --rpc-url base \
+    --broadcast \
+    --verify
+  ```
+- [ ] Register Gelato task for `checkUpkeep(bytes)` + `performUpkeep(bytes)` automation
+- [ ] Verify `commitDraw()`/`revealDraw()` automation on-chain after first 24h round
+- [ ] Update `NEXT_PUBLIC_LOTTERY_ADDRESS_MAINNET` with deployed contract
+- [ ] Sanity-check mainnet UI: ticket purchase, transaction feed, countdown, fee stat, share button
+- [ ] Announce launch and monitor treasury growth / automation execution
+
 ## Key Features Implemented
 ✅ Daily lottery rounds (24 hours)
 ✅ Ticket purchasing (0.0001 ETH each, max 10 per tx)

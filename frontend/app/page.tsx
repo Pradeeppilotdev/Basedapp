@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Coins, Trophy, Users, TrendingUp, Sparkles, Clock, AlertCircle } from "lucide-react";
+import { Coins, Trophy, Users, TrendingUp, Sparkles, Clock, AlertCircle, Send, MessageCircle } from "lucide-react";
 import { formatEther } from 'viem';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,9 @@ export default function Home() {
     userTickets,
     timeRemaining,
     treasuryProgress,
+    totalFeesGeneratedEth,
+    recentPurchases,
+    roundEndTime,
     buyTickets,
     isEntering,
     isConfirming,
@@ -27,8 +30,19 @@ export default function Home() {
   } = useLottery();
 
   const [ticketCount, setTicketCount] = useState(1);
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
+  const [showShare, setShowShare] = useState(false);
 
-  // Format time remaining
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const exactTimeRemaining = useMemo(() => {
+    if (!roundEndTime) return timeRemaining;
+    return Math.max(0, roundEndTime - now);
+  }, [roundEndTime, now, timeRemaining]);
+
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -38,6 +52,24 @@ export default function Home() {
 
   const handleBuyTickets = async () => {
     await buyTickets(ticketCount);
+  };
+
+  useEffect(() => {
+    if (isConfirmed) {
+      setShowShare(true);
+    }
+  }, [isConfirmed]);
+
+  const twitterIntentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+    'Just entered the Based Daily Lottery for $0.30! 🎰 Win ETH daily on Base. [link] #Base #DeFi'
+  )}`;
+
+  const truncateWallet = (wallet: string) => `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
+  const formatAgo = (timestamp: number) => {
+    const diff = Math.max(0, now - timestamp);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
   };
 
   return (
@@ -61,6 +93,30 @@ export default function Home() {
 
         <div className="pt-4">
           <ConnectButton />
+        </div>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10"
+          >
+            <a href="https://discord.gg/" target="_blank" rel="noreferrer">
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Join Discord
+            </a>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="border-purple-500/40 text-purple-300 hover:bg-purple-500/10"
+          >
+            <a href="https://t.me/" target="_blank" rel="noreferrer">
+              <Send className="w-4 h-4 mr-2" />
+              Join Telegram
+            </a>
+          </Button>
         </div>
       </div>
 
@@ -126,7 +182,7 @@ export default function Home() {
                 <CardDescription>Draw In</CardDescription>
                 <CardTitle className="text-4xl mt-2 font-mono">
                   <Clock className="w-8 h-8 inline-block mr-2 text-cyan-500" />
-                  <span className="text-gradient">{formatTime(timeRemaining)}</span>
+                  <span className="text-gradient">{formatTime(exactTimeRemaining)}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -219,8 +275,17 @@ export default function Home() {
                   </Button>
 
                   {isConfirmed && (
-                    <div className="text-center text-green-400 text-sm font-medium">
-                      ✅ Purchase successful! You got {ticketCount * 100} BASED tokens!
+                    <div className="space-y-3">
+                      <div className="text-center text-green-400 text-sm font-medium">
+                        ✅ Purchase successful! You got {ticketCount * 100} BASED tokens!
+                      </div>
+                      {showShare && (
+                        <Button asChild variant="secondary" className="w-full">
+                          <a href={twitterIntentUrl} target="_blank" rel="noreferrer">
+                            Share on X
+                          </a>
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -257,19 +322,46 @@ export default function Home() {
             {/* Treasury Progress */}
             <Card>
               <CardHeader>
-                <CardDescription>Liquidity Fund Progress</CardDescription>
+                <CardDescription>Total Fees Generated</CardDescription>
                 <CardTitle className="text-3xl">
-                  <span className="text-gradient">{treasuryProgress}%</span>
-                  <span className="text-xl text-slate-400 ml-2">to 0.1 ETH</span>
+                  <span className="text-gradient">{totalFeesGeneratedEth}</span>
+                  <span className="text-xl text-slate-400 ml-2">ETH</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   <Progress value={treasuryProgress} className="h-3" />
                   <p className="text-xs text-slate-400">
-                    Once we reach 0.1 ETH, a Uniswap liquidity pool will be created making BASED tokens tradeable! 🚀
+                    Treasury progress to 0.1 ETH liquidity threshold: {treasuryProgress}% 🚀
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="max-w-6xl mx-auto">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Ticket Purchases</CardTitle>
+                <CardDescription>Live on-chain activity feed</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentPurchases.length === 0 && (
+                  <p className="text-sm text-slate-400">No recent purchases yet.</p>
+                )}
+                {recentPurchases.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between rounded-lg border border-purple-500/20 bg-slate-900/40 px-3 py-2"
+                  >
+                    <div className="text-sm text-slate-200">
+                      <span className="font-mono text-cyan-300">{truncateWallet(item.buyer)}</span>
+                      <span className="mx-2 text-slate-500">•</span>
+                      <span>{item.numTickets} ticket{item.numTickets > 1 ? 's' : ''}</span>
+                    </div>
+                    <span className="text-xs text-slate-400">{formatAgo(item.timestamp)}</span>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </div>

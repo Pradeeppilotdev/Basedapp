@@ -50,6 +50,11 @@ contract HybridLottery is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant LIQUIDITY_THRESHOLD = 0.1 ether; // Min treasury to create liquidity
     uint256 public constant LIQUIDITY_ETH_AMOUNT = 0.05 ether; // ETH for liquidity pool
     uint256 public constant LIQUIDITY_TOKEN_AMOUNT = 50_000_000 * 10**18; // 50M tokens for pool
+    
+    // Upkeep actions for automation
+    uint8 private constant UPKEEP_ACTION_ROLLOVER = 1;
+    uint8 private constant UPKEEP_ACTION_COMMIT = 2;
+    uint8 private constant UPKEEP_ACTION_REVEAL = 3;
 
     /*//////////////////////////////////////////////////////////////
                                   STATE
@@ -84,6 +89,9 @@ contract HybridLottery is Ownable, ReentrancyGuard, Pausable {
 
     // Ticket ownership: roundId => ticketIndex => user address
     mapping(uint256 => mapping(uint256 => address)) public ticketOwners;
+    
+    // Auto-generated nonce per round for autonomous commit/reveal
+    mapping(uint256 => uint256) public roundCommitNonces;
 
     // Treasury for liquidity creation
     uint256 public treasuryBalance;
@@ -115,9 +123,11 @@ contract HybridLottery is Ownable, ReentrancyGuard, Pausable {
         uint256 ethPrize,
         uint256 tokenBonus
     );
+    event RoundRolledOver(uint256 indexed roundId);
     event PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 ethAmount, uint256 tokenAmount);
     event TreasuryUpdated(uint256 newBalance);
     event LiquidityCreated(address indexed pool, uint256 ethAmount, uint256 tokenAmount);
+    event UpkeepPerformed(uint256 indexed roundId, uint8 action);
 
     /*//////////////////////////////////////////////////////////////
                                   ERRORS
@@ -139,6 +149,9 @@ contract HybridLottery is Ownable, ReentrancyGuard, Pausable {
     error LiquidityAlreadyCreated();
     error InsufficientTokenBalance();
     error InvalidTokenAddress();
+    error UpkeepNotNeeded();
+    error InvalidUpkeepAction();
+    error InvalidUpkeepRound();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
@@ -243,75 +256,71 @@ contract HybridLottery is Ownable, ReentrancyGuard, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Commit to a draw (step 1 of commit-reveal)
-     * @param _commitHash Hash of (roundId + nonce) - keep nonce secret!
+     * @notice Commit draw with an auto-generated nonce (permissionless)
+     * @dev Can be called directly or via performUpkeep
      */
-    function commitDraw(bytes32 _commitHash) external onlyOwner {
-        // Validate round has ended
-        if (block.timestamp < roundEndTime) revert RoundNotEnded();
-
-        Round storage round = rounds[currentRoundId];
-
-        // Validate not already drawn
-        if (round.drawn) revert RoundAlreadyDrawn();
-
-        // Validate round has tickets
-        if (round.totalTickets == 0) revert NoTicketsInRound();
-
-        // Prevent commitment overwrite
-        if (round.commitHash != bytes32(0)) revert DrawAlreadyCommitted();
-
-        // Store commitment
-        round.commitHash = _commitHash;
-        round.commitBlock = block.number;
-
-        emit DrawCommitted(currentRoundId, _commitHash, block.number);
+    function commitDraw() external whenNotPaused {
+        _commitDraw();
     }
 
     /**
-     * @notice Reveal the nonce and select winner (step 2 of commit-reveal)
-     * @param _nonce The secret nonce used in commitment
+     * @notice Reveal draw with stored auto-generated nonce (permissionless)
+     * @dev Can be called directly or via performUpkeep
      */
-    function revealDraw(uint256 _nonce) external onlyOwner {
-        Round storage round = rounds[currentRoundId];
+    function revealDraw() external whenNotPaused {
+        _revealDraw();
+    }
 
-        // Validate draw was committed
-        if (round.commitHash == bytes32(0)) revert DrawNotCommitted();
-
-        // Validate enough blocks have passed
-        if (block.number < round.commitBlock + COMMIT_REVEAL_BLOCKS) {
-            revert TooEarlyToReveal();
+    /**
+     * @notice Chainlink/Gelato-compatible check function
+     * @dev Returns the next required action for current round
+     */
+    function checkUpkeep(bytes calldata) external view returns (bool upkeepNeeded, bytes memory performData) {
+        if (paused() || block.timestamp < roundEndTime) {
+            return (false, bytes(""));
         }
 
-        // Verify the reveal matches the commitment
-        bytes32 revealHash = keccak256(abi.encodePacked(currentRoundId, _nonce));
-        if (revealHash != round.commitHash) revert InvalidReveal();
+        Round storage round = rounds[currentRoundId];
 
-        // Generate randomness
-        uint256 randomSeed = uint256(
-            keccak256(
-                abi.encodePacked(
-                    blockhash(round.commitBlock),
-                    _nonce,
-                    currentRoundId,
-                    round.totalTickets,
-                    block.prevrandao
-                )
-            )
-        );
+        if (round.drawn) {
+            return (false, bytes(""));
+        }
 
-        // Select winning ticket
-        uint256 winningTicketIndex = randomSeed % round.totalTickets;
-        address winner = ticketOwners[currentRoundId][winningTicketIndex];
+        if (round.totalTickets == 0) {
+            return (true, abi.encode(UPKEEP_ACTION_ROLLOVER, currentRoundId));
+        }
 
-        // Update round state
-        round.winner = winner;
-        round.drawn = true;
+        if (round.commitHash == bytes32(0)) {
+            return (true, abi.encode(UPKEEP_ACTION_COMMIT, currentRoundId));
+        }
 
-        emit WinnerSelected(currentRoundId, winner, round.prizePool, WINNER_BONUS_TOKENS);
+        if (block.number >= round.commitBlock + COMMIT_REVEAL_BLOCKS) {
+            return (true, abi.encode(UPKEEP_ACTION_REVEAL, currentRoundId));
+        }
 
-        // Start next round
-        _startNewRound();
+        return (false, bytes(""));
+    }
+
+    /**
+     * @notice Chainlink/Gelato-compatible execute function
+     * @param _performData ABI encoded (uint8 action, uint256 roundId)
+     */
+    function performUpkeep(bytes calldata _performData) external whenNotPaused {
+        (uint8 action, uint256 roundId) = abi.decode(_performData, (uint8, uint256));
+        if (roundId != currentRoundId) revert InvalidUpkeepRound();
+
+        if (action == UPKEEP_ACTION_ROLLOVER) {
+            if (block.timestamp < roundEndTime || rounds[currentRoundId].totalTickets != 0) revert UpkeepNotNeeded();
+            _rolloverRound();
+        } else if (action == UPKEEP_ACTION_COMMIT) {
+            _commitDraw();
+        } else if (action == UPKEEP_ACTION_REVEAL) {
+            _revealDraw();
+        } else {
+            revert InvalidUpkeepAction();
+        }
+
+        emit UpkeepPerformed(roundId, action);
     }
 
     /**
@@ -414,6 +423,87 @@ contract HybridLottery is Ownable, ReentrancyGuard, Pausable {
         });
 
         emit RoundStarted(currentRoundId, roundStartTime, roundEndTime);
+    }
+
+    /**
+     * @notice Internal commit step with deterministic nonce generation
+     */
+    function _commitDraw() internal {
+        if (block.timestamp < roundEndTime) revert RoundNotEnded();
+
+        Round storage round = rounds[currentRoundId];
+        if (round.drawn) revert RoundAlreadyDrawn();
+        if (round.totalTickets == 0) revert NoTicketsInRound();
+        if (round.commitHash != bytes32(0)) revert DrawAlreadyCommitted();
+
+        uint256 nonce = uint256(
+            keccak256(
+                abi.encodePacked(
+                    block.prevrandao,
+                    block.timestamp,
+                    currentRoundId,
+                    round.totalTickets,
+                    address(this)
+                )
+            )
+        );
+
+        roundCommitNonces[currentRoundId] = nonce;
+        round.commitHash = keccak256(abi.encodePacked(currentRoundId, nonce));
+        round.commitBlock = block.number;
+
+        emit DrawCommitted(currentRoundId, round.commitHash, block.number);
+    }
+
+    /**
+     * @notice Internal reveal step using previously committed nonce
+     */
+    function _revealDraw() internal {
+        Round storage round = rounds[currentRoundId];
+        if (round.commitHash == bytes32(0)) revert DrawNotCommitted();
+
+        if (block.number < round.commitBlock + COMMIT_REVEAL_BLOCKS) {
+            revert TooEarlyToReveal();
+        }
+
+        uint256 nonce = roundCommitNonces[currentRoundId];
+        bytes32 revealHash = keccak256(abi.encodePacked(currentRoundId, nonce));
+        if (revealHash != round.commitHash) revert InvalidReveal();
+
+        uint256 randomSeed = uint256(
+            keccak256(
+                abi.encodePacked(
+                    blockhash(round.commitBlock),
+                    nonce,
+                    currentRoundId,
+                    round.totalTickets,
+                    block.prevrandao
+                )
+            )
+        );
+
+        uint256 winningTicketIndex = randomSeed % round.totalTickets;
+        address winner = ticketOwners[currentRoundId][winningTicketIndex];
+
+        round.winner = winner;
+        round.drawn = true;
+
+        emit WinnerSelected(currentRoundId, winner, round.prizePool, WINNER_BONUS_TOKENS);
+        _startNewRound();
+    }
+
+    /**
+     * @notice Internal rollover for rounds with zero tickets
+     */
+    function _rolloverRound() internal {
+        if (block.timestamp < roundEndTime) revert RoundNotEnded();
+        Round storage round = rounds[currentRoundId];
+        if (round.totalTickets != 0) revert UpkeepNotNeeded();
+        if (round.drawn) revert RoundAlreadyDrawn();
+
+        round.drawn = true;
+        emit RoundRolledOver(currentRoundId);
+        _startNewRound();
     }
 
     /*//////////////////////////////////////////////////////////////

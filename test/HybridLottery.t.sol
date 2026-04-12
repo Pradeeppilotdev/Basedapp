@@ -31,6 +31,7 @@ contract HybridLotteryTest is Test {
         uint256 ethPrize,
         uint256 tokenBonus
     );
+    event RoundRolledOver(uint256 indexed roundId);
     event PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 ethAmount, uint256 tokenAmount);
 
     function setUp() public {
@@ -165,15 +166,13 @@ contract HybridLotteryTest is Test {
         vm.warp(block.timestamp + 24 hours + 1);
 
         // Commit draw
-        uint256 nonce = 12345;
-        bytes32 commitHash = keccak256(abi.encodePacked(uint256(1), nonce));
-        lottery.commitDraw(commitHash);
+        lottery.commitDraw();
 
         // Wait required blocks
         vm.roll(block.number + 2);
 
         // Reveal and select winner
-        lottery.revealDraw(nonce);
+        lottery.revealDraw();
 
         HybridLottery.Round memory round = lottery.getRound(1);
         assertTrue(round.drawn);
@@ -184,17 +183,15 @@ contract HybridLotteryTest is Test {
         vm.prank(user1);
         lottery.enterLottery{value: TICKET_PRICE}(1);
 
-        bytes32 commitHash = keccak256(abi.encodePacked(uint256(1), uint256(123)));
         vm.expectRevert(HybridLottery.RoundNotEnded.selector);
-        lottery.commitDraw(commitHash);
+        lottery.commitDraw();
     }
 
     function test_RevertDrawWithNoTickets() public {
         vm.warp(block.timestamp + 24 hours + 1);
 
-        bytes32 commitHash = keccak256(abi.encodePacked(uint256(1), uint256(123)));
         vm.expectRevert(HybridLottery.NoTicketsInRound.selector);
-        lottery.commitDraw(commitHash);
+        lottery.commitDraw();
     }
 
     function test_RevertRevealTooEarly() public {
@@ -203,30 +200,31 @@ contract HybridLotteryTest is Test {
 
         vm.warp(block.timestamp + 24 hours + 1);
 
-        uint256 nonce = 123;
-        bytes32 commitHash = keccak256(abi.encodePacked(uint256(1), nonce));
-        lottery.commitDraw(commitHash);
+        lottery.commitDraw();
 
         // Try to reveal immediately
         vm.expectRevert(HybridLottery.TooEarlyToReveal.selector);
-        lottery.revealDraw(nonce);
+        lottery.revealDraw();
     }
 
-    function test_RevertInvalidReveal() public {
+    function test_RoundRolloverWithNoTickets() public {
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        vm.expectEmit(true, false, false, true);
+        emit RoundRolledOver(1);
+        lottery.performUpkeep(abi.encode(uint8(1), uint256(1)));
+
+        assertEq(lottery.currentRoundId(), 2);
+    }
+
+    function test_RevertInvalidUpkeepAction() public {
         vm.prank(user1);
         lottery.enterLottery{value: TICKET_PRICE}(1);
 
         vm.warp(block.timestamp + 24 hours + 1);
 
-        uint256 nonce = 123;
-        bytes32 commitHash = keccak256(abi.encodePacked(uint256(1), nonce));
-        lottery.commitDraw(commitHash);
-
-        vm.roll(block.number + 2);
-
-        // Try to reveal with wrong nonce
-        vm.expectRevert(HybridLottery.InvalidReveal.selector);
-        lottery.revealDraw(456);
+        vm.expectRevert(HybridLottery.InvalidUpkeepAction.selector);
+        lottery.performUpkeep(abi.encode(uint8(99), uint256(1)));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -240,11 +238,9 @@ contract HybridLotteryTest is Test {
 
         // Complete draw
         vm.warp(block.timestamp + 24 hours + 1);
-        uint256 nonce = 12345;
-        bytes32 commitHash = keccak256(abi.encodePacked(uint256(1), nonce));
-        lottery.commitDraw(commitHash);
+        lottery.commitDraw();
         vm.roll(block.number + 2);
-        lottery.revealDraw(nonce);
+        lottery.revealDraw();
 
         HybridLottery.Round memory round = lottery.getRound(1);
         address winner = round.winner;
@@ -272,10 +268,9 @@ contract HybridLotteryTest is Test {
         lottery.enterLottery{value: TICKET_PRICE}(1);
 
         vm.warp(block.timestamp + 24 hours + 1);
-        uint256 nonce = 123;
-        lottery.commitDraw(keccak256(abi.encodePacked(uint256(1), nonce)));
+        lottery.commitDraw();
         vm.roll(block.number + 2);
-        lottery.revealDraw(nonce);
+        lottery.revealDraw();
 
         vm.prank(user2);
         vm.expectRevert(HybridLottery.NotWinner.selector);
@@ -287,10 +282,9 @@ contract HybridLotteryTest is Test {
         lottery.enterLottery{value: TICKET_PRICE}(1);
 
         vm.warp(block.timestamp + 24 hours + 1);
-        uint256 nonce = 123;
-        lottery.commitDraw(keccak256(abi.encodePacked(uint256(1), nonce)));
+        lottery.commitDraw();
         vm.roll(block.number + 2);
-        lottery.revealDraw(nonce);
+        lottery.revealDraw();
 
         address winner = lottery.getRound(1).winner;
 
@@ -316,9 +310,9 @@ contract HybridLotteryTest is Test {
 
         // Complete round and start new one
         vm.warp(block.timestamp + 24 hours + 1);
-        lottery.commitDraw(keccak256(abi.encodePacked(uint256(1), uint256(123))));
+        lottery.commitDraw();
         vm.roll(block.number + 2);
-        lottery.revealDraw(123);
+        lottery.revealDraw();
 
         // Buy in new round
         vm.prank(user2);
@@ -360,12 +354,14 @@ contract HybridLotteryTest is Test {
             uint256 totalParticipants,
             uint256 treasury,
             bool liquidityCreated,
+            address liquidityPool
         ) = lottery.getStats();
 
         assertEq(totalTokens, TOKENS_PER_TICKET * 5);
         assertEq(totalParticipants, 2);
         assertEq(treasury, TICKET_PRICE * 5 * 20 / 100);
         assertFalse(liquidityCreated);
+        assertEq(liquidityPool, address(0));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -397,9 +393,9 @@ contract HybridLotteryTest is Test {
         lottery.enterLottery{value: TICKET_PRICE * 2}(2);
 
         vm.warp(block.timestamp + 24 hours + 1);
-        lottery.commitDraw(keccak256(abi.encodePacked(uint256(1), uint256(111))));
+        lottery.commitDraw();
         vm.roll(block.number + 2);
-        lottery.revealDraw(111);
+        lottery.revealDraw();
 
         assertEq(lottery.currentRoundId(), 2);
 
@@ -433,5 +429,29 @@ contract HybridLotteryTest is Test {
 
         uint256 expectedTreasury = TICKET_PRICE * numTickets * 20 / 100;
         assertEq(lottery.treasuryBalance(), expectedTreasury);
+    }
+
+    function test_CheckUpkeepForCommitAndReveal() public {
+        vm.prank(user1);
+        lottery.enterLottery{value: TICKET_PRICE * 2}(2);
+
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        (bool upkeepNeeded, bytes memory performData) = lottery.checkUpkeep("");
+        assertTrue(upkeepNeeded);
+
+        (uint8 action, uint256 roundId) = abi.decode(performData, (uint8, uint256));
+        assertEq(action, 2);
+        assertEq(roundId, 1);
+
+        lottery.performUpkeep(performData);
+
+        vm.roll(block.number + 2);
+
+        (upkeepNeeded, performData) = lottery.checkUpkeep("");
+        assertTrue(upkeepNeeded);
+        (action, roundId) = abi.decode(performData, (uint8, uint256));
+        assertEq(action, 3);
+        assertEq(roundId, 1);
     }
 }
