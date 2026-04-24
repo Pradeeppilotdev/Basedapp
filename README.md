@@ -58,7 +58,7 @@ Rewards:
 - ✅ Commit-reveal randomness (secure & cheap)
 - ✅ 80% prize to winner, 20% to treasury
 - ✅ Treasury-funded liquidity creation
-- ✅ Comprehensive test suite (24/24 passing)
+- ✅ Comprehensive test suite (70/70 passing)
 - ✅ Next.js frontend with Web3 integration
 
 ## 📦 Project Structure
@@ -164,7 +164,7 @@ Open http://localhost:3000 🎉
 **Security:**
 - OpenZeppelin contracts (Ownable, ReentrancyGuard, Pausable, ERC20)
 - Pull-over-push payment pattern
-- Comprehensive test coverage (24/24 passing)
+- Comprehensive test coverage (70/70 passing)
 - Immutable critical parameters
 
 ## 🎨 Frontend
@@ -203,7 +203,7 @@ cast send $CONTRACT "revealDraw(uint256)" $NONCE --rpc-url base_sepolia --privat
 ## 📊 Test Results
 
 ```
-Ran 24 tests for HybridLottery.sol
+Ran 26 tests for HybridLottery.sol
 ✅ All tests passed
 ✅ Fuzz tests included  
 ✅ Token distribution verified
